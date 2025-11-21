@@ -3,288 +3,155 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard - Ouvidoria CETEP LNAB</title>
-    
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
-    
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-    
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-    
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    
+    <title>Dashboard - Ouvidoria</title>
     <style>
-        /* Estilos específicos para a Dashboard */
-        .manifestacao-card {
-            border-left: 5px solid var(--cetep-azul); /* Detalhe azul na lateral */
-            transition: transform 0.2s, box-shadow 0.2s;
+        body { font-family: Arial, sans-serif; margin: 20px; background-color: #f4f4f4; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        h1 { color: #333; }
+        button, .button { padding: 10px 15px; border: none; cursor: pointer; border-radius: 4px; }
+        .btn-update { background-color: #007bff; color: white; margin-right: 10px; }
+        .btn-logout { background-color: #dc3545; color: white; text-decoration: none; }
+        .manifestacao-card { border: 1px solid #ccc; padding: 15px; margin-bottom: 20px; background-color: #fff; box-shadow: 2px 2px 5px rgba(0,0,0,0.1); border-radius: 5px; }
+        .manifestacao-card h2 { margin-top: 0; color: #007bff; }
+        .manifestacao-card p { margin-bottom: 5px; }
+        .status-pendente { color: red; font-weight: bold; }
+        .status-respondida { color: green; font-weight: bold; }
+        .descricao, .resposta-texto { margin-top: 10px; padding: 10px; background-color: #eee; border: 1px solid #ddd; white-space: pre-wrap; border-radius: 4px; }
+        /* Estilos do Modal */
+        .modal { 
+            display: none; position: fixed; z-index: 1; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; 
+            background-color: rgba(0,0,0,0.4); justify-content: center; align-items: center; 
         }
-        .manifestacao-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 15px rgba(0, 0, 0, 0.1);
-        }
-        .status-pendente { 
-            color: var(--cetep-vermelho); 
-            font-weight: 700; 
-        }
-        .status-respondida { 
-            color: #28a745; /* Verde para respondido */
-            font-weight: 700; 
-        }
-        .header {
-            border-bottom: 2px solid #eee;
-        }
-        .dark-theme .manifestacao-card {
-            border-left: 5px solid #fff;
-        }
+        .modal-content { background-color: #fefefe; margin: auto; padding: 20px; border: 1px solid #888; width: 80%; max-width: 600px; border-radius: 8px; }
+        .close { color: #aaa; float: right; font-size: 28px; font-weight: bold; }
+        .close:hover, .close:focus { color: black; text-decoration: none; cursor: pointer; }
+        textarea { width: 100%; padding: 10px; border: 1px solid #ccc; margin-top: 10px; box-sizing: border-box; border-radius: 4px; }
+        .btn-responder { background-color: #28a745; color: white; }
+        .btn-cancel { background-color: #6c757d; color: white; }
     </style>
 </head>
 <body>
-    <div class="container mt-5">
-        
-        <div class="header d-flex justify-content-between align-items-center mb-4 pb-3">
-            <h1 class="h3"><i class="fas fa-chart-line me-2"></i> Dashboard Administrativa</h1>
-            <div>
-                <button id="toggleTheme" class="btn btn-outline-secondary btn-sm me-2"><i class="fas fa-moon me-1"></i> Tema Escuro</button>
-                <a href="{{ url_for('index') }}" class="btn btn-danger"><i class="fas fa-sign-out-alt me-1"></i> Sair</a>
-            </div>
-        </div>
-
-        <div class="mb-4">
-            <label for="filtroStatus" class="form-label fw-bold">Filtrar por Status:</label>
-            <select id="filtroStatus" class="form-select w-auto">
-                <option value="todos">Todos</option>
-                <option value="pendente">Pendentes</option>
-                <option value="respondida">Respondidas</option>
-            </select>
-        </div>
-
-        <div id="manifestacoes-container" class="row">
-            </div>
-
-        <div id="loading" class="text-center mt-5">
-            <div class="spinner-border text-primary" role="status">
-                <span class="visually-hidden">Carregando...</span>
-            </div>
-            <p class="mt-2">Carregando manifestações...</p>
-        </div>
-        
-    </div>
-
-    <div class="modal fade" id="respostaModal" tabindex="-1" aria-labelledby="respostaModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <div class="modal-header bg-primary text-white">
-                    <h5 class="modal-title" id="respostaModalLabel">Responder Manifestação <span id="modalProtocolo" class="badge bg-light text-primary ms-2"></span></h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <div id="modalDetalhes" class="mb-3 p-3 border rounded bg-light">
-                        </div>
-                    <form id="formResposta">
-                        <input type="hidden" id="protocoloResposta" name="protocolo">
-                        <div class="mb-3">
-                            <label for="responseTextarea" class="form-label fw-bold">Sua Resposta Oficial:</label>
-                            <textarea class="form-control" id="responseTextarea" name="resposta" rows="8" required minlength="10"></textarea>
-                        </div>
-                        <div class="d-grid">
-                            <button type="submit" class="btn btn-success btn-lg" id="sendResponseButton">
-                                <i class="fas fa-paper-plane me-1"></i> Enviar Resposta
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            </div>
+    <div class="header">
+        <h1>Painel de Controle da Ouvidoria</h1>
+        <div>
+            <button onclick="carregarManifestacoes(true)" class="btn-update">Atualizar Lista</button>
+            <a href="/admin" class="button btn-logout">Sair</a> 
         </div>
     </div>
+    <p>Gerencie e responda às manifestações do CETEP LNAB.</p>
 
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <div id="loadingMessage" style="text-align: center; font-size: 1.2em; padding: 20px;">
+        Carregando manifestações...
+    </div>
+
+    <div id="manifestacoesContainer">
+        </div>
+
+    <div id="noManifestations" style="text-align: center; color: #666; padding: 20px; display: none;">
+        Nenhuma manifestação encontrada.
+    </div>
     
+    <div id="responseModal" class="modal">
+        <div class="modal-content">
+            <span onclick="fecharModal()" class="close">&times;</span>
+            <h2>Responder Manifestação</h2>
+            <p id="modalProtocolo">Protocolo:</p>
+            
+            <textarea id="responseTextarea" rows="6" placeholder="Digite sua resposta aqui..."></textarea>
+            
+            <div style="text-align: right; margin-top: 15px;">
+                <button onclick="fecharModal()" class="btn-cancel">Cancelar</button>
+                <button id="sendResponseButton" class="btn-responder">Enviar Resposta</button>
+            </div>
+        </div>
+    </div>
+
     <script>
-        // Variáveis globais
+        document.addEventListener('DOMContentLoaded', () => {
+            carregarManifestacoes();
+        });
+
         let currentProtocolo = null;
-        const manifestacoesContainer = document.getElementById('manifestacoes-container');
-        const loadingSpinner = document.getElementById('loading');
-        const filtroStatus = document.getElementById('filtroStatus');
-        
-        // Modal elements
-        const respostaModalElement = document.getElementById('respostaModal');
-        const respostaModal = new bootstrap.Modal(respostaModalElement);
+        const container = document.getElementById('manifestacoesContainer');
+        const loadingMessage = document.getElementById('loadingMessage');
+        const noManifestations = document.getElementById('noManifestations');
+        const responseModal = document.getElementById('responseModal');
         const modalProtocolo = document.getElementById('modalProtocolo');
-        const modalDetalhes = document.getElementById('modalDetalhes');
         const responseTextarea = document.getElementById('responseTextarea');
-        const protocoloResposta = document.getElementById('protocoloResposta');
         const sendResponseButton = document.getElementById('sendResponseButton');
 
-        // ===============================================
-        // LÓGICA DE TEMA ESCURO (DARK MODE) - CORREÇÃO
-        // ===============================================
-        const toggleThemeButton = document.getElementById('toggleTheme');
-        const body = document.body;
-        const themeKey = 'ouvidoria-dark-theme';
+        function carregarManifestacoes(force = false) {
+            loadingMessage.style.display = 'block';
+            container.innerHTML = '';
+            noManifestations.style.display = 'none';
 
-        function aplicarTemaSalvo() {
-            const savedTheme = localStorage.getItem(themeKey);
-            if (savedTheme === 'enabled') {
-                body.classList.add('dark-theme');
-                if (toggleThemeButton) {
-                    toggleThemeButton.innerHTML = '<i class="fas fa-sun me-1"></i> Tema Claro';
+            fetch('/api/manifestacoes')
+            .then(response => response.json())
+            .then(data => {
+                loadingMessage.style.display = 'none';
+                
+                if (data.length === 0) {
+                    noManifestations.style.display = 'block';
+                    return;
                 }
-            } else {
-                body.classList.remove('dark-theme');
-                if (toggleThemeButton) {
-                    toggleThemeButton.innerHTML = '<i class="fas fa-moon me-1"></i> Tema Escuro';
-                }
-            }
+
+                data.reverse().forEach(m => {
+                    const card = criarCardManifestacao(m);
+                    container.appendChild(card);
+                });
+            })
+            .catch(error => {
+                loadingMessage.style.display = 'none';
+                container.innerHTML = `<div style="padding: 10px; background-color: #fdd; color: #a00;">Erro ao carregar dados: ${error.message}</div>`;
+                console.error('Erro ao buscar manifestações:', error);
+            });
         }
 
-        function toggleTheme() {
-            if (body.classList.contains('dark-theme')) {
-                body.classList.remove('dark-theme');
-                localStorage.setItem(themeKey, 'disabled');
-                toggleThemeButton.innerHTML = '<i class="fas fa-moon me-1"></i> Tema Escuro';
-            } else {
-                body.classList.add('dark-theme');
-                localStorage.setItem(themeKey, 'enabled');
-                toggleThemeButton.innerHTML = '<i class="fas fa-sun me-1"></i> Tema Claro';
-            }
-        }
-        
-        document.addEventListener('DOMContentLoaded', aplicarTemaSalvo);
-        if (toggleThemeButton) {
-            toggleThemeButton.addEventListener('click', toggleTheme);
-        }
-        // ===============================================
-
-        // -----------------------------------------------
-        // FUNÇÕES DA DASHBOARD
-        // -----------------------------------------------
-        
-        function formatarDetalhes(m) {
-            return `
-                <p><strong>Nome:</strong> ${m.nome || 'Anônimo'}</p>
-                <p><strong>Tipo:</strong> ${m.tipo.toUpperCase()}</p>
+        function criarCardManifestacao(m) {
+            const card = document.createElement('div');
+            const isAnswered = m.resposta !== null && m.resposta !== '';
+            
+            card.className = 'manifestacao-card';
+            
+            card.innerHTML = `
+                <h2>${m.tipo.toUpperCase()}</h2>
+                <p><strong>Protocolo:</strong> ${m.protocolo}</p>
+                <p><strong>Status:</strong> <span class="${isAnswered ? 'status-respondida' : 'status-pendente'}">${isAnswered ? 'Respondida' : 'Pendente'}</span></p>
                 <p><strong>Data:</strong> ${m.data}</p>
-                <hr>
+                <p><strong>Nome:</strong> ${m.nome}</p>
+                <p><strong>CPF:</strong> ${m.cpf}</p>
+                <p><strong>Matrícula:</strong> ${m.matricula}</p>
+                
                 <p><strong>Descrição:</strong></p>
-                <p class="mb-0">${m.descricao}</p>
+                <div class="descricao">${m.descricao}</div>
+                
+                ${isAnswered ? 
+                    `<p style="margin-top: 15px;"><strong>Resposta da Ouvidoria:</strong></p>
+                    <div class="resposta-texto">${m.resposta}</div>` 
+                    : `<button onclick="abrirModal('${m.protocolo}')" class="btn-responder" style="margin-top: 15px;">
+                        Responder
+                    </button>`
+                }
             `;
+            return card;
         }
-        
-        function abrirModal(manifestacao) {
-            currentProtocolo = manifestacao.protocolo;
-            
-            modalProtocolo.textContent = '#' + currentProtocolo;
-            modalDetalhes.innerHTML = formatarDetalhes(manifestacao);
-            
-            // Preenche o campo de resposta se já houver uma
-            responseTextarea.value = manifestacao.resposta || '';
-            protocoloResposta.value = currentProtocolo;
 
-            // Desabilita o campo de resposta e o botão se já estiver respondida
-            if (manifestacao.resposta) {
-                responseTextarea.disabled = true;
-                sendResponseButton.disabled = true;
-                sendResponseButton.textContent = 'Já Respondida';
-                sendResponseButton.classList.remove('btn-success');
-                sendResponseButton.classList.add('btn-secondary');
-            } else {
-                responseTextarea.disabled = false;
-                sendResponseButton.disabled = false;
-                sendResponseButton.textContent = 'Enviar Resposta';
-                sendResponseButton.classList.remove('btn-secondary');
-                sendResponseButton.classList.add('btn-success');
-            }
-            
-            respostaModal.show();
+        function abrirModal(protocolo) {
+            currentProtocolo = protocolo;
+            modalProtocolo.textContent = `Protocolo: ${protocolo}`;
+            responseTextarea.value = ''; 
+            responseModal.style.display = 'flex';
         }
 
         function fecharModal() {
-            respostaModal.hide();
-            // Limpa o formulário e variáveis
-            document.getElementById('formResposta').reset();
+            responseModal.style.display = 'none';
             currentProtocolo = null;
         }
 
-        function renderizarManifestacoes(manifestacoes, filtro) {
-            manifestacoesContainer.innerHTML = '';
-            
-            manifestacoes.forEach(m => {
-                const status = m.resposta ? 'respondida' : 'pendente';
-                
-                if (filtro !== 'todos' && status !== filtro) {
-                    return; // Pula se não corresponder ao filtro
-                }
+        sendResponseButton.addEventListener('click', enviarResposta);
 
-                const statusClass = status === 'pendente' ? 'status-pendente' : 'status-respondida';
-                const statusText = status === 'pendente' ? 'Pendente' : 'Respondida';
-                const buttonText = status === 'pendente' ? 'Responder' : 'Ver Resposta';
-                const buttonClass = status === 'pendente' ? 'btn-outline-primary' : 'btn-outline-secondary';
-                
-                const cardHtml = `
-                    <div class="col-md-6 col-lg-4 mb-4">
-                        <div class="card manifestacao-card shadow-sm h-100 p-3">
-                            <div class="card-body">
-                                <span class="badge bg-secondary mb-2">${m.tipo.toUpperCase()}</span>
-                                <h5 class="card-title fw-bold">Protocolo: #${m.protocolo}</h5>
-                                <p class="card-text mb-1">
-                                    <i class="fas fa-user me-1"></i> 
-                                    ${m.nome || '<span class="text-muted">Anônimo</span>'}
-                                </p>
-                                <p class="card-text mb-2">
-                                    <i class="fas fa-clock me-1"></i> 
-                                    ${m.data}
-                                </p>
-                                <p class="card-text fw-bold">
-                                    Status: <span class="${statusClass}">${statusText}</span>
-                                </p>
-                                <div class="mt-3">
-                                    <button class="btn ${buttonClass} btn-sm w-100" onclick='abrirModal(${JSON.stringify(m)})'>
-                                        <i class="fas fa-reply me-1"></i> ${buttonText}
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                `;
-                manifestacoesContainer.innerHTML += cardHtml;
-            });
-
-            if (manifestacoesContainer.innerHTML === '') {
-                 manifestacoesContainer.innerHTML = '<div class="col-12"><div class="alert alert-info text-center">Nenhuma manifestação encontrada com este filtro.</div></div>';
-            }
-        }
-
-        function carregarManifestacoes(reload = false) {
-            loadingSpinner.style.display = 'block';
-            manifestacoesContainer.innerHTML = '';
-            
-            // Verifica o filtro atual
-            const filtro = filtroStatus.value;
-
-            fetch('/api/manifestacoes')
-                .then(response => response.json())
-                .then(data => {
-                    // Inverte a ordem para mostrar os mais novos primeiro
-                    data.reverse(); 
-                    renderizarManifestacoes(data, filtro);
-                })
-                .catch(error => {
-                    console.error('Erro ao carregar manifestações:', error);
-                    manifestacoesContainer.innerHTML = '<div class="alert alert-danger col-12">Não foi possível carregar as manifestações. Tente novamente mais tarde.</div>';
-                })
-                .finally(() => {
-                    loadingSpinner.style.display = 'none';
-                });
-        }
-        
-        // Listener para o filtro
-        filtroStatus.addEventListener('change', () => carregarManifestacoes(true));
-
-        // Listener para o formulário de resposta
-        document.getElementById('formResposta').addEventListener('submit', function(e) {
-            e.preventDefault();
+        function enviarResposta() {
+            if (!currentProtocolo) return;
             
             const resposta = responseTextarea.value.trim();
             if (resposta.length < 10) {
@@ -295,7 +162,9 @@
             sendResponseButton.disabled = true;
             sendResponseButton.textContent = 'Enviando...';
 
-            const payload = new URLSearchParams(new FormData(e.target));
+            const payload = new URLSearchParams();
+            payload.append('protocolo', currentProtocolo);
+            payload.append('resposta', resposta);
 
             fetch('/responder', {
                 method: 'POST',
@@ -306,7 +175,7 @@
                 if (data.mensagem) {
                     alert(data.mensagem); 
                     fecharModal();
-                    carregarManifestacoes(true); // Recarrega a lista para ver a mudança
+                    carregarManifestacoes(true); // Recarrega a lista
                 } else {
                     alert('Erro ao enviar resposta: ' + (data.erro || 'Erro desconhecido.'));
                 }
@@ -319,10 +188,7 @@
                 sendResponseButton.disabled = false;
                 sendResponseButton.textContent = 'Enviar Resposta';
             });
-        });
-
-        // Iniciar o carregamento das manifestações
-        document.addEventListener('DOMContentLoaded', carregarManifestacoes);
+        }
     </script>
 </body>
 </html>
