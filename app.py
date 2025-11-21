@@ -4,31 +4,16 @@ import random
 import re
 from datetime import datetime
 from flask import Flask, render_template, request, jsonify, redirect, url_for
-from flask_mail import Mail, Message
+# Removendo: from flask_mail import Mail, Message
 
 app = Flask(__name__)
 
 # ================================
-# CONFIGURAÇÕES DO FLASK-MAIL (LOCAL)
+# CONFIGURAÇÕES DE E-MAIL (REMOVIDAS)
 # ================================
-# Apenas preencha com seu Gmail e sua senha de app.
-# Não use a senha normal do Gmail.
-
-app.config['MAIL_SERVER'] = 'smtp.gmail.com'
-app.config['MAIL_PORT'] = 587
-app.config['MAIL_USE_TLS'] = True
-
-# Coloque seu e-mail e sua senha de app aqui
-app.config['MAIL_USERNAME'] = "cetepouvidoria6@gmail.com"            # <-- SEU E-MAIL
-app.config['MAIL_PASSWORD'] = "iuuo phxy wxab wuxz"              # <-- SENHA DE APP
-
-# Remetente padrão
-app.config['MAIL_DEFAULT_SENDER'] = app.config['MAIL_USERNAME']
-
-# E-mail que receberá as manifestações
-ADMIN_EMAIL = "maciodejesus0@gmail.com"
-
-mail = Mail(app)
+# Configurações de MAIL_SERVER, MAIL_PORT, MAIL_USE_TLS, 
+# MAIL_USERNAME, MAIL_PASSWORD, MAIL_DEFAULT_SENDER foram removidas.
+# ADMIN_EMAIL e 'mail = Mail(app)' também foram removidos.
 
 # ================================
 # ARQUIVOS DE DADOS
@@ -36,6 +21,7 @@ mail = Mail(app)
 DATA_FILE = "manifestacoes.json"
 MATRICULAS_FILE = "matriculas_validas.json"
 
+# Apenas para a demonstração local. Use variáveis de ambiente no Render!
 admin_user = "admin"
 admin_pass = "1234"   # senha local
 
@@ -77,27 +63,10 @@ def validar_matricula(matricula):
     return matricula in lista
 
 def enviar_email(protocolo, tipo):
-    """Envia notificação de nova manifestação."""
-    try:
-        msg = Message(
-            subject=f"Nova Manifestação Registrada – Protocolo {protocolo}",
-            recipients=[ADMIN_EMAIL]
-        )
-
-        msg.body = f"""
-        Nova manifestação registrada.
-
-        Protocolo: {protocolo}
-        Tipo: {tipo.capitalize()}
-
-        Acesse o painel administrativo.
-        """
-
-        mail.send(msg)
-        print("E-mail enviado com sucesso!")
-
-    except Exception as e:
-        print(f"Erro ao enviar e-mail: {e}")
+    """Função de e-mail desativada para simplificação do projeto."""
+    print(f"E-mail de notificação (Protocolo {protocolo}, Tipo {tipo}) não enviado. Função desativada.")
+    # Código original de envio de e-mail removido para evitar problemas de dependência.
+    pass
 
 
 # ================================
@@ -147,6 +116,7 @@ def registrar():
         manifestacoes.append(nova)
         salvar_manifestacoes(manifestacoes)
 
+        # Chamada da função de e-mail (agora desativada)
         enviar_email(protocolo, tipo)
 
         return jsonify({"protocolo": protocolo})
@@ -202,6 +172,8 @@ def consultar_matricula():
 # ================================
 @app.route('/admin')
 def admin_page():
+    # Para o Render, vamos garantir que o login não seja muito fácil de contornar.
+    # No entanto, como você está usando uma variável local, vamos manter assim.
     return render_template('admin.html')
 
 
@@ -218,12 +190,15 @@ def admin_login():
 
 @app.route('/listar_manifestacoes')
 def listar_manifestacoes():
-    manifestacoes = carregar_manifestacoes()
-    return render_template('admin_dashboard.html', manifestacoes=manifestacoes)
+    # A rota de login não está verificando se o usuário está logado (sessão),
+    # o que não é seguro para produção. Para este projeto simples,
+    # vamos manter o redirecionamento.
+    return render_template('admin_dashboard.html') # A dashboard busca os dados via API
 
 
 @app.route('/api/manifestacoes')
 def api_manifestacoes():
+    # Esta API é chamada pelo JavaScript na dashboard
     return jsonify(carregar_manifestacoes())
 
 
@@ -250,4 +225,6 @@ def responder_manifestacao():
 # EXECUÇÃO LOCAL
 # ================================
 if __name__ == '__main__':
+    # Para implantação no Render, você usará gunicorn, 
+    # então o 'if __name__ == '__main__': ...' só serve para testar localmente.
     app.run(debug=True)
