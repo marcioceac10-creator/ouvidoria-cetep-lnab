@@ -4,16 +4,14 @@ import random
 import re
 from datetime import datetime
 from flask import Flask, render_template, request, jsonify, redirect, url_for
-# Removendo: from flask_mail import Mail, Message
+# REMOVIDO: from flask_mail import Mail, Message
 
 app = Flask(__name__)
 
 # ================================
 # CONFIGURAÇÕES DE E-MAIL (REMOVIDAS)
 # ================================
-# Configurações de MAIL_SERVER, MAIL_PORT, MAIL_USE_TLS, 
-# MAIL_USERNAME, MAIL_PASSWORD, MAIL_DEFAULT_SENDER foram removidas.
-# ADMIN_EMAIL e 'mail = Mail(app)' também foram removidos.
+# Todas as configurações de 'app.config['MAIL_SERVER']', 'ADMIN_EMAIL', etc., foram removidas.
 
 # ================================
 # ARQUIVOS DE DADOS
@@ -63,9 +61,9 @@ def validar_matricula(matricula):
     return matricula in lista
 
 def enviar_email(protocolo, tipo):
-    """Função de e-mail desativada para simplificação do projeto."""
+    """Função de e-mail desativada para simplificação do projeto no Render."""
     print(f"E-mail de notificação (Protocolo {protocolo}, Tipo {tipo}) não enviado. Função desativada.")
-    # Código original de envio de e-mail removido para evitar problemas de dependência.
+    # O corpo original da função de envio de e-mail foi removido.
     pass
 
 
@@ -116,7 +114,7 @@ def registrar():
         manifestacoes.append(nova)
         salvar_manifestacoes(manifestacoes)
 
-        # Chamada da função de e-mail (agora desativada)
+        # Chamada da função de e-mail (agora desativada e não faz nada)
         enviar_email(protocolo, tipo)
 
         return jsonify({"protocolo": protocolo})
@@ -172,8 +170,6 @@ def consultar_matricula():
 # ================================
 @app.route('/admin')
 def admin_page():
-    # Para o Render, vamos garantir que o login não seja muito fácil de contornar.
-    # No entanto, como você está usando uma variável local, vamos manter assim.
     return render_template('admin.html')
 
 
@@ -190,15 +186,11 @@ def admin_login():
 
 @app.route('/listar_manifestacoes')
 def listar_manifestacoes():
-    # A rota de login não está verificando se o usuário está logado (sessão),
-    # o que não é seguro para produção. Para este projeto simples,
-    # vamos manter o redirecionamento.
-    return render_template('admin_dashboard.html') # A dashboard busca os dados via API
+    return render_template('admin_dashboard.html')
 
 
 @app.route('/api/manifestacoes')
 def api_manifestacoes():
-    # Esta API é chamada pelo JavaScript na dashboard
     return jsonify(carregar_manifestacoes())
 
 
@@ -222,9 +214,7 @@ def responder_manifestacao():
 
 
 # ================================
-# EXECUÇÃO LOCAL
+# EXECUÇÃO LOCAL (Para testes)
 # ================================
 if __name__ == '__main__':
-    # Para implantação no Render, você usará gunicorn, 
-    # então o 'if __name__ == '__main__': ...' só serve para testar localmente.
     app.run(debug=True)
