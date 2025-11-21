@@ -11,7 +11,7 @@ app = Flask(__name__)
 # ================================
 # CONFIGURAÇÕES DE E-MAIL (REMOVIDAS)
 # ================================
-# Todas as configurações de 'app.config['MAIL_SERVER']', 'ADMIN_EMAIL', etc., foram removidas.
+# As configurações de e-mail foram totalmente removidas.
 
 # ================================
 # ARQUIVOS DE DADOS
@@ -19,28 +19,37 @@ app = Flask(__name__)
 DATA_FILE = "manifestacoes.json"
 MATRICULAS_FILE = "matriculas_validas.json"
 
-# Apenas para a demonstração local. Use variáveis de ambiente no Render!
-admin_user = "admin"
-admin_pass = "1234"   # senha local
+# ================================
+# ADMINISTRAÇÃO - LENDO VARIÁVEIS DE AMBIENTE
+# ================================
+# **IMPORTANTE:** Estas variáveis serão lidas do Render (ADMIN_USER e ADMIN_PASS).
+# O segundo valor ("admin_local" e "1234_local") é um padrão (fallback)
+# caso você execute o app localmente sem as variáveis de ambiente.
+admin_user = os.environ.get("ADMIN_USER", "admin_local")
+admin_pass = os.environ.get("ADMIN_PASS", "1234_local")
 
 
 # ================================
 # FUNÇÕES DE ARQUIVO/MANIPULAÇÃO
 # ================================
 def carregar_manifestacoes():
+    """Carrega a lista de manifestações do arquivo JSON."""
     if os.path.exists(DATA_FILE):
         with open(DATA_FILE, "r", encoding="utf-8") as f:
             try:
                 return json.load(f)
             except json.JSONDecodeError:
+                # Retorna lista vazia se o arquivo estiver corrompido ou vazio
                 return []
     return []
 
 def salvar_manifestacoes(manifestacoes):
+    """Salva a lista de manifestações no arquivo JSON."""
     with open(DATA_FILE, "w", encoding="utf-8") as f:
         json.dump(manifestacoes, f, indent=4, ensure_ascii=False)
 
 def carregar_matriculas_validas():
+    """Carrega a lista de matrículas válidas do arquivo JSON."""
     if os.path.exists(MATRICULAS_FILE):
         with open(MATRICULAS_FILE, "r", encoding="utf-8") as f:
             try:
@@ -61,9 +70,8 @@ def validar_matricula(matricula):
     return matricula in lista
 
 def enviar_email(protocolo, tipo):
-    """Função de e-mail desativada para simplificação do projeto no Render."""
-    print(f"E-mail de notificação (Protocolo {protocolo}, Tipo {tipo}) não enviado. Função desativada.")
-    # O corpo original da função de envio de e-mail foi removido.
+    """Função de e-mail desativada conforme solicitado."""
+    print(f"E-mail de notificação (Protocolo {protocolo}, Tipo {tipo}) desativado.")
     pass
 
 
@@ -108,14 +116,13 @@ def registrar():
             "tipo": tipo,
             "descricao": descricao,
             "data": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
-            "resposta": None
+            "resposta": None # Novo campo para a resposta do admin
         }
 
         manifestacoes.append(nova)
         salvar_manifestacoes(manifestacoes)
 
-        # Chamada da função de e-mail (agora desativada e não faz nada)
-        enviar_email(protocolo, tipo)
+        enviar_email(protocolo, tipo) # A função não faz mais nada
 
         return jsonify({"protocolo": protocolo})
 
@@ -178,6 +185,7 @@ def admin_login():
     usuario = request.form.get('usuarioAdmin')
     senha = request.form.get('senhaAdmin')
 
+    # A partir de agora, verifica as credenciais definidas nas V. de Ambiente do Render
     if usuario == admin_user and senha == admin_pass:
         return jsonify({'redirect': url_for('listar_manifestacoes')})
     else:
@@ -186,11 +194,13 @@ def admin_login():
 
 @app.route('/listar_manifestacoes')
 def listar_manifestacoes():
+    # A dashboard busca os dados via API, não precisa passar aqui
     return render_template('admin_dashboard.html')
 
 
 @app.route('/api/manifestacoes')
 def api_manifestacoes():
+    # Esta API é chamada pelo JavaScript na dashboard
     return jsonify(carregar_manifestacoes())
 
 
@@ -214,7 +224,8 @@ def responder_manifestacao():
 
 
 # ================================
-# EXECUÇÃO LOCAL (Para testes)
+# EXECUÇÃO LOCAL (Apenas para testes)
 # ================================
 if __name__ == '__main__':
+    # Se rodar localmente, o login será com admin_local / 1234_local
     app.run(debug=True)
