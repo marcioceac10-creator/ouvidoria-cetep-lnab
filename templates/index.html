@@ -7,6 +7,20 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <style>
+    /* Estilo básico para tema escuro, se o style.css não for carregado */
+    .hidden { display: none !important; }
+    .dark-theme { background-color: #212529; color: #f8f9fa; }
+    .dark-theme .card { background-color: #343a40; border-color: #495057; }
+    .dark-theme .card h4 { color: #fff; }
+    .dark-theme .form-control, .dark-theme .form-select { 
+        background-color: #495057; 
+        color: #f8f9fa;
+        border-color: #6c757d;
+    }
+    .dark-theme .form-control::placeholder { color: #ced4da; }
+    .dark-theme .logo-box { color: #f8f9fa; }
+  </style>
 </head>
 <body>
   <div class="container mt-3">
@@ -44,6 +58,12 @@
           <label for="matricula" class="form-label">Matrícula</label>
           <input type="text" id="matricula" name="matricula" class="form-control" placeholder="Apenas 8 números" maxlength="8" required>
         </div>
+        <!-- NOVO CAMPO: EMAIL -->
+        <div class="mb-3">
+          <label for="email" class="form-label">E-mail (Para receber a resposta)</label>
+          <input type="email" id="email" name="email" class="form-control" placeholder="Seu melhor e-mail (opcional)">
+        </div>
+        <!-- FIM NOVO CAMPO -->
         
         <div class="mb-3">
           <label for="tipo" class="form-label">Tipo de Manifestação</label>
@@ -118,6 +138,7 @@
     <div id="confirmacao" class="card shadow-sm p-4 mb-4 hidden text-center">
       <h4 class="text-success">Manifestação registrada com sucesso!</h4>
       <p id="protocoloGerado"></p>
+      <p>Você receberá um e-mail de notificação quando a ouvidoria responder (se o e-mail foi fornecido).</p>
       <button class="btn btn-primary" onclick="mostrar('registro')">Nova Manifestação</button>
       <button class="btn btn-secondary" onclick="mostrar('consulta')">Consultar Protocolo</button>
     </div>
@@ -135,7 +156,7 @@ function mostrar(id){
   // Limpa os resultados de consulta ao mudar a tela
   $('#resultadoConsulta').html('');
   $('#resultadoConsultaCPF').html('');
-  $('#resultadoConsultaMatricula').html(''); // NOVO: Limpa a consulta por matrícula
+  $('#resultadoConsultaMatricula').html(''); 
 }
 
 const toggleThemeBtn = document.getElementById("toggleTheme");
@@ -151,12 +172,18 @@ function formatResults(data, targetDivId) {
     else {
       let html = '';
       data.forEach(d => {
+        // NOVO: Exibe o campo de email na consulta
+        const emailInfo = d.email ? `<p><strong>E-mail:</strong> ${d.email}</p>` : '';
+        const statusClass = d.resposta ? 'text-success' : 'text-warning';
+        const statusText = d.resposta ? 'Respondida' : 'Aguardando Resposta';
+
         html += `
         <div class="border p-3 mb-2">
-          <p><strong>Protocolo:</strong> ${d.protocolo}</p>
+          <p><strong>Protocolo:</strong> ${d.protocolo} | <span class="${statusClass}">Status: ${statusText}</span></p>
           <p><strong>Nome:</strong> ${d.nome || 'Anônimo'}</p>
           <p><strong>CPF:</strong> ${d.cpf}</p>
           <p><strong>Matrícula:</strong> ${d.matricula || 'Não informada'}</p> 
+          ${emailInfo}
           <p><strong>Tipo:</strong> ${d.tipo}</p>
           <p><strong>Descrição:</strong> ${d.descricao}</p>`;
         if (d.resposta) html += `<p class="text-success"><strong>Resposta do Admin:</strong> ${d.resposta}</p>`;
@@ -177,6 +204,7 @@ $('#formRegistro').on('submit', function(e){
   $.post('/registrar', $(this).serialize(), function(data){
     $('#protocoloGerado').text('Protocolo: ' + data.protocolo);
     mostrar('confirmacao');
+    $('#formRegistro')[0].reset(); // Limpa o formulário
   }).fail(function(err){
     alert(err.responseJSON?.erro || 'Erro desconhecido');
   });
@@ -185,12 +213,17 @@ $('#formRegistro').on('submit', function(e){
 $('#formConsulta').on('submit', function(e){
   e.preventDefault();
   $.post('/consultar', $(this).serialize(), function(data){
+    const emailInfo = data.email ? `<p><strong>E-mail:</strong> ${data.email}</p>` : '';
+    const statusClass = data.resposta ? 'text-success' : 'text-warning';
+    const statusText = data.resposta ? 'Respondida' : 'Aguardando Resposta';
+    
     let html = `
       <div class="border p-3">
-        <p><strong>Protocolo:</strong> ${data.protocolo}</p>
+        <p><strong>Protocolo:</strong> ${data.protocolo} | <span class="${statusClass}">Status: ${statusText}</span></p>
         <p><strong>Nome:</strong> ${data.nome || 'Anônimo'}</p>
         <p><strong>CPF:</strong> ${data.cpf}</p>
         <p><strong>Matrícula:</strong> ${data.matricula || 'Não informada'}</p>
+        ${emailInfo}
         <p><strong>Tipo:</strong> ${data.tipo}</p>
         <p><strong>Descrição:</strong> ${data.descricao}</p>`;
     if (data.resposta) html += `<p class="text-success"><strong>Resposta do Admin:</strong> ${data.resposta}</p>`;
