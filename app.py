@@ -1,231 +1,320 @@
 import json
 import os
 import random
-import re
+import smtplib
+from email.mime.text import MIMEText
 from datetime import datetime
-from flask import Flask, render_template, request, jsonify, redirect, url_for
-# REMOVIDO: from flask_mail import Mail, Message
+from flask import Flask, request, jsonify, render_template, redirect, url_for, session
 
 app = Flask(__name__)
+# LENDO DA VARIÁVEL DE AMBIENTE: FLASK_SECRET_KEY
+# Se a variável não for definida, ele usa um valor padrão (fallback).
+app.secret_key = os.getenv('FLASK_SECRET_KEY', 'chave_de_fallback_padrao_mude_isso') 
 
-# ================================
-# CONFIGURAÇÕES DE E-MAIL (REMOVIDAS)
-# ================================
-# As configurações de e-mail foram totalmente removidas.
+# Arquivos de dados
+MANIFESTACOES_FILE = 'manifestacoes.json'
+MATRICULAS_FILE = 'matriculas_validas.json'
+ADMIN_CREDS_FILE = 'admin_creds.json'
 
-# ================================
-# ARQUIVOS DE DADOS
-# ================================
-DATA_FILE = "manifestacoes.json"
-MATRICULAS_FILE = "matriculas_validas.json"
+# --- CONFIGURAÇÃO DE E-MAIL (AGORA LIDA DAS VARIÁVEIS DE AMBIENTE NO RENDER) ---
+# LENDO DA VARIÁVEL DE AMBIENTE: SENDER_EMAIL
+SENDER_EMAIL = os.getenv('SENDER_EMAIL') 
+# LENDO DA VARIÁVEL DE AMBIENTE: EMAIL_PASSWORD (DEVE SER A SENHA DE APP DO GMAIL)
+EMAIL_PASSWORD = os.getenv('EMAIL_PASSWORD') 
+# LENDO DA VARIÁVEL DE AMBIENTE: ADMIN_EMAIL
+ADMIN_EMAIL = os.getenv('ADMIN_EMAIL') 
+# 3. O e-mail do MANIFESTANTE é coletado no formulário e usado na rota /responder
 
-# ================================
-# ADMINISTRAÇÃO - LENDO VARIÁVEIS DE AMBIENTE
-# ================================
-# **IMPORTANTE:** Estas variáveis serão lidas do Render (ADMIN_USER e ADMIN_PASS).
-# O segundo valor ("admin_local" e "1234_local") é um padrão (fallback)
-# caso você execute o app localmente sem as variáveis de ambiente.
-admin_user = os.environ.get("ADMIN_USER", "admin_local")
-admin_pass = os.environ.get("ADMIN_PASS", "1234_local")
+# --- Funções de Ajuda ---
 
-
-# ================================
-# FUNÇÕES DE ARQUIVO/MANIPULAÇÃO
-# ================================
-def carregar_manifestacoes():
-    """Carrega a lista de manifestações do arquivo JSON."""
-    if os.path.exists(DATA_FILE):
-        with open(DATA_FILE, "r", encoding="utf-8") as f:
-            try:
-                return json.load(f)
-            except json.JSONDecodeError:
-                # Retorna lista vazia se o arquivo estiver corrompido ou vazio
+def carregar_dados(filepath):
+    """Carrega dados de um arquivo JSON. Se o arquivo não existir, retorna uma lista vazia."""
+    if not os.path.exists(filepath):
+        return []
+    try:
+        with open(filepath, 'r', encoding='utf-8') as f:
+            # Tenta ler o conteúdo; se estiver vazio, retorna lista vazia.
+            content = f.read()
+            if not content:
                 return []
-    return []
+            return json.loads(content)
+    except json.JSONDecodeError:
+        # Se houver erro de decodificação JSON, retorna lista vazia e imprime erro (para debug)
+        print(f"Erro ao decodificar JSON em {filepath}. Retornando lista vazia.")
+        return []
+    except Exception as e:
+        print(f"Erro inesperado ao carregar dados de {filepath}: {e}")
+        return []
 
-def salvar_manifestacoes(manifestacoes):
-    """Salva a lista de manifestações no arquivo JSON."""
-    with open(DATA_FILE, "w", encoding="utf-8") as f:
-        json.dump(manifestacoes, f, indent=4, ensure_ascii=False)
+def salvar_dados(filepath, data):
+    """Salva dados em um arquivo JSON."""
+    try:
+        with open(filepath, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=4)
+    except Exception as e:
+        print(f"Erro ao salvar dados em {filepath}: {e}")
 
-def carregar_matriculas_validas():
-    """Carrega a lista de matrículas válidas do arquivo JSON."""
-    if os.path.exists(MATRICULAS_FILE):
-        with open(MATRICULAS_FILE, "r", encoding="utf-8") as f:
-            try:
-                return json.load(f)
-            except json.JSONDecodeError:
-                return []
-    return []
-
-
-# ================================
-# FUNÇÕES AUXILIARES
-# ================================
 def gerar_protocolo():
-    return str(random.randint(1000000000, 9999999999))
+    """Gera um número de protocolo único e curto."""
+    # Gera um número de 6 dígitos
+    return str(random.randint(100000, 999999))
 
-def validar_matricula(matricula):
-    lista = carregar_matriculas_validas()
-    return matricula in lista
+def enviar_email(destinatario, assunto, corpo):
+    """Envia um email de notificação usando o SENDER_EMAIL."""
+    # Garante que as configurações essenciais para o envio estejam presentes
+    if not destinatario or not SENDER_EMAIL or not EMAIL_PASSWORD:
+        print("Aviso: Configurações de e-mail incompletas (Destinatário, Remetente ou Senha). E-mail não enviado.")
+        return False
+    
+    try:
+        msg = MIMEText(corpo, 'html')
+        msg['Subject'] = assunto
+        msg['From'] = SENDER_EMAIL
+        msg['To'] = destinatario
 
-def enviar_email(protocolo, tipo):
-    """Função de e-mail desativada conforme solicitado."""
-    print(f"E-mail de notificação (Protocolo {protocolo}, Tipo {tipo}) desativado.")
-    pass
+        # Conexão com o servidor SMTP do Gmail
+        with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
+            server.login(SENDER_EMAIL, EMAIL_PASSWORD)
+            server.sendmail(SENDER_EMAIL, destinatario, msg.as_string())
+        
+        print(f"E-mail enviado com sucesso para {destinatario}")
+        return True
+    except smtplib.SMTPAuthenticationError:
+        print("ERRO DE AUTENTICAÇÃO SMTP: Verifique se o SENDER_EMAIL e a Senha de App estão corretos.")
+        return False
+    except Exception as e:
+        print(f"Erro ao enviar email: {e}")
+        return False
 
+# --- Rotas Públicas ---
 
-# ================================
-# ROTAS PRINCIPAIS
-# ================================
 @app.route('/')
 def index():
     return render_template('index.html')
 
-
 @app.route('/registrar', methods=['POST'])
-def registrar():
-    try:
-        nome = request.form.get('nome', 'Anônimo').strip()
-        cpf = re.sub(r'[^0-9]', '', request.form.get('cpf', '').strip())
-        matricula = re.sub(r'[^0-9]', '', request.form.get('matricula', '').strip())
-        tipo = request.form.get('tipo', '').strip()
-        descricao = request.form.get('descricao', '').strip()
+def registrar_manifestacao():
+    dados = request.form.to_dict()
+    
+    # Validação da matrícula
+    matriculas_validas = carregar_dados(MATRICULAS_FILE)
+    matricula = dados.get('matricula', '').strip()
+    
+    if matricula and matricula not in matriculas_validas:
+        return jsonify({'erro': 'Matrícula inválida. Verifique se digitou os 8 números corretamente.'}), 400
 
-        # Validações
-        if len(cpf) != 11:
-            return jsonify({'erro': 'CPF inválido (11 dígitos).'}), 400
+    # Sanitiza CPF e Matrícula (apenas números)
+    cpf_sanitizado = dados.get('cpf', '').replace(' ', '').replace('-', '').replace('.', '')
+    matricula_sanitizada = matricula.replace(' ', '')
 
-        if len(matricula) != 8:
-            return jsonify({'erro': 'Matrícula inválida (8 dígitos).'}), 400
+    # Cria o novo registro
+    protocolo = gerar_protocolo()
+    nova_manifestacao = {
+        'protocolo': protocolo,
+        'nome': dados.get('nome', '').strip() or 'Anônimo',
+        'cpf': cpf_sanitizado,
+        'matricula': matricula_sanitizada,
+        'email': dados.get('email', '').strip(), # E-mail do Manifestante
+        'tipo': dados['tipo'],
+        'descricao': dados['descricao'],
+        'data': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        'resposta': None 
+    }
 
-        if not validar_matricula(matricula):
-            return jsonify({'erro': 'Matrícula não encontrada.'}), 400
+    manifestacoes = carregar_dados(MANIFESTACOES_FILE)
+    manifestacoes.append(nova_manifestacao)
+    salvar_dados(MANIFESTACOES_FILE, manifestacoes)
 
-        if not tipo or not descricao:
-            return jsonify({'erro': 'Preencha todos os campos obrigatórios.'}), 400
-
-        protocolo = gerar_protocolo()
-        manifestacoes = carregar_manifestacoes()
-
-        nova = {
-            "protocolo": protocolo,
-            "nome": nome,
-            "cpf": cpf,
-            "matricula": matricula,
-            "tipo": tipo,
-            "descricao": descricao,
-            "data": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
-            "resposta": None # Novo campo para a resposta do admin
-        }
-
-        manifestacoes.append(nova)
-        salvar_manifestacoes(manifestacoes)
-
-        enviar_email(protocolo, tipo) # A função não faz mais nada
-
-        return jsonify({"protocolo": protocolo})
-
-    except Exception as e:
-        print("ERRO:", e)
-        return jsonify({"erro": f"Erro ao registrar: {e}"}), 500
-
+    # =================================================================
+    # PASSO 1: Notificação do Administrador (Nova Manifestação)
+    # O ADMIN_EMAIL é lido da variável de ambiente.
+    # =================================================================
+    assunto_admin = f"NOVA MANIFESTAÇÃO REGISTRADA - Protocolo {protocolo}"
+    corpo_admin = f"""
+    <html>
+    <body style="font-family: Arial, sans-serif; line-height: 1.6;">
+        <h2>Uma nova manifestação foi registrada na Ouvidoria!</h2>
+        <p><strong>Protocolo:</strong> {protocolo}</p>
+        <p><strong>Tipo:</strong> {nova_manifestacao['tipo'].capitalize()}</p>
+        <p><strong>Nome:</strong> {nova_manifestacao['nome']}</p>
+        <p><strong>Matrícula:</strong> {nova_manifestacao['matricula'] or 'N/A'}</p>
+        
+        <h3 style="color: #007bff;">Descrição:</h3>
+        <div style="border: 1px solid #ccc; padding: 15px; border-radius: 5px; background-color: #f9f9f9;">
+            <p>{nova_manifestacao['descricao'].replace('\n', '<br>')}</p>
+        </div>
+        
+        <p>Acesse o painel administrativo para visualizar e responder.</p>
+        <p>Atenciosamente,<br>Sistema de Ouvidoria</p>
+    </body>
+    </html>
+    """
+    # Envia para o ADMIN_EMAIL (variável de ambiente)
+    enviar_email(ADMIN_EMAIL, assunto_admin, corpo_admin) 
+    # =================================================================
+    
+    return jsonify({'mensagem': 'Manifestação registrada com sucesso', 'protocolo': protocolo})
 
 @app.route('/consultar', methods=['POST'])
-def consultar():
-    protocolo = request.form.get('protocolo', '').strip()
-
-    if not protocolo.isdigit():
-        return jsonify({'erro': 'Protocolo inválido.'}), 400
-
-    manifestacoes = carregar_manifestacoes()
+def consultar_protocolo():
+    protocolo = request.form.get('protocolo')
+    manifestacoes = carregar_dados(MANIFESTACOES_FILE)
+    
     for m in manifestacoes:
         if m['protocolo'] == protocolo:
             return jsonify(m)
-
-    return jsonify({'erro': 'Manifestação não encontrada.'}), 404
-
+    
+    return jsonify({'erro': 'Protocolo não encontrado.'}), 404
 
 @app.route('/consultar_cpf', methods=['POST'])
 def consultar_cpf():
-    cpf = re.sub(r'[^0-9]', '', request.form.get('cpfBusca', '').strip())
-
-    if len(cpf) != 11:
-        return jsonify({'erro': 'CPF inválido.'}), 400
-
-    manifestacoes = carregar_manifestacoes()
+    cpf = request.form.get('cpfBusca', '').replace(' ', '').replace('-', '').replace('.', '')
+    manifestacoes = carregar_dados(MANIFESTACOES_FILE)
+    
     resultados = [m for m in manifestacoes if m['cpf'] == cpf]
-
-    return jsonify(resultados)
-
+    
+    if resultados:
+        return jsonify(resultados)
+    
+    return jsonify({'erro': 'Nenhuma manifestação encontrada para este CPF.'}), 404
 
 @app.route('/consultar_matricula', methods=['POST'])
 def consultar_matricula():
-    matricula = re.sub(r'[^0-9]', '', request.form.get('matriculaBusca', '').strip())
-
-    if len(matricula) != 8:
-        return jsonify({'erro': 'Matrícula inválida.'}), 400
-
-    manifestacoes = carregar_manifestacoes()
+    matricula = request.form.get('matriculaBusca', '').replace(' ', '')
+    manifestacoes = carregar_dados(MANIFESTACOES_FILE)
+    
     resultados = [m for m in manifestacoes if m['matricula'] == matricula]
+    
+    if resultados:
+        return jsonify(resultados)
+    
+    return jsonify({'erro': 'Nenhuma manifestação encontrada para esta Matrícula.'}), 404
 
-    return jsonify(resultados)
+# --- Rotas Admin ---
 
-
-# ================================
-# ADMINISTRAÇÃO
-# ================================
-@app.route('/admin')
-def admin_page():
-    return render_template('admin.html')
-
+@app.route('/admin_login')
+def admin_login():
+    return render_template('admin.html') 
 
 @app.route('/admin_login', methods=['POST'])
-def admin_login():
+def admin_autenticar():
     usuario = request.form.get('usuarioAdmin')
     senha = request.form.get('senhaAdmin')
+    
+    admin_creds = carregar_dados(ADMIN_CREDS_FILE)
+    
+    if any(cred['usuario'] == usuario and cred['senha'] == senha for cred in admin_creds):
+        session['admin_logado'] = True
+        return jsonify({'redirect': url_for('admin_dashboard')})
+    
+    return jsonify({'erro': 'Credenciais inválidas'}), 401
 
-    # A partir de agora, verifica as credenciais definidas nas V. de Ambiente do Render
-    if usuario == admin_user and senha == admin_pass:
-        return jsonify({'redirect': url_for('listar_manifestacoes')})
-    else:
-        return jsonify({'erro': 'Credenciais inválidas.'}), 401
+@app.route('/admin_dashboard')
+def admin_dashboard():
+    if not session.get('admin_logado'):
+        return redirect(url_for('admin_login'))
 
-
-@app.route('/listar_manifestacoes')
-def listar_manifestacoes():
-    # A dashboard busca os dados via API, não precisa passar aqui
-    return render_template('admin_dashboard.html')
-
-
-@app.route('/api/manifestacoes')
-def api_manifestacoes():
-    # Esta API é chamada pelo JavaScript na dashboard
-    return jsonify(carregar_manifestacoes())
-
+    manifestacoes = carregar_dados(MANIFESTACOES_FILE)
+    return render_template('admin_dashboard.html', manifestacoes=manifestacoes)
 
 @app.route('/responder', methods=['POST'])
 def responder_manifestacao():
+    if not session.get('admin_logado'):
+        return jsonify({'erro': 'Não autorizado'}), 401
+    
     protocolo = request.form.get('protocolo')
     resposta = request.form.get('resposta')
+    
+    manifestacoes = carregar_dados(MANIFESTACOES_FILE)
+    encontrado = False
+    manifestante_email = None
+    m = None 
 
-    if not protocolo or not resposta:
-        return jsonify({'erro': 'Campos obrigatórios.'}), 400
-
-    manifestacoes = carregar_manifestacoes()
-
-    for m in manifestacoes:
-        if m['protocolo'] == protocolo:
+    for item in manifestacoes:
+        if item['protocolo'] == protocolo:
+            m = item 
             m['resposta'] = resposta
-            salvar_manifestacoes(manifestacoes)
-            return jsonify({'mensagem': 'Resposta salva com sucesso.'})
+            # Captura o email do manifestante registrado
+            manifestante_email = m.get('email') 
+            encontrado = True
+            break
+            
+    if encontrado:
+        salvar_dados(MANIFESTACOES_FILE, manifestacoes)
+        
+        # =================================================================
+        # PASSO 2: Notificação do Manifestante (Resposta)
+        # O SENDER_EMAIL e EMAIL_PASSWORD são lidos das variáveis de ambiente.
+        # =================================================================
+        if manifestante_email and m: 
+            assunto = f"Ouvidoria CETEP LNAB - Resposta ao Protocolo {protocolo}"
+            corpo = f"""
+            <html>
+            <body style="font-family: Arial, sans-serif; line-height: 1.6;">
+                <h2>Sua manifestação foi respondida!</h2>
+                <p><strong>Protocolo:</strong> {protocolo}</p>
+                <p><strong>Tipo:</strong> {m['tipo'].capitalize()}</p>
+                <p><strong>Descrição original:</strong> {m['descricao']}</p>
+                
+                <h3 style="color: #007bff;">Resposta da Ouvidoria:</h3>
+                <div style="border: 1px solid #ccc; padding: 15px; border-radius: 5px; background-color: #f9f9f9;">
+                    <p>{resposta.replace('\n', '<br>')}</p>
+                </div>
+                
+                <p>Agradecemos seu contato.</p>
+                <p>Atenciosamente,<br>Ouvidoria CETEP LNAB</p>
+            </body>
+            </html>
+            """
+            # Envia para o email do manifestante
+            enviar_email(manifestante_email, assunto, corpo)
+        # =================================================================
 
-    return jsonify({'erro': 'Protocolo não encontrado.'}), 404
+        return jsonify({'mensagem': 'Resposta salva com sucesso e notificação enviada.'})
+    
+    return jsonify({'erro': 'Protocolo não encontrado para responder.'}), 404
 
+@app.route('/admin_logout')
+def admin_logout():
+    session.pop('admin_logado', None)
+    return redirect(url_for('index'))
 
-# ================================
-# EXECUÇÃO LOCAL (Apenas para testes)
-# ================================
+@app.route('/limpar_respondidas', methods=['POST'])
+def limpar_respondidas():
+    """Remove permanentemente do arquivo todas as manifestações que já possuem uma resposta."""
+    if not session.get('admin_logado'):
+        return jsonify({'erro': 'Não autorizado'}), 401
+
+    try:
+        manifestacoes_atuais = carregar_dados(MANIFESTACOES_FILE)
+        
+        # Filtra: mantém APENAS as manifestações onde 'resposta' é None (Aguardando Resposta)
+        manifestacoes_pendentes = [m for m in manifestacoes_atuais if m['resposta'] is None]
+        
+        # Calcula quantas foram removidas
+        removidas_count = len(manifestacoes_atuais) - len(manifestacoes_pendentes)
+        
+        # Salva o novo array (apenas pendentes) no arquivo
+        salvar_dados(MANIFESTACOES_FILE, manifestacoes_pendentes)
+        
+        return jsonify({
+            'mensagem': f'{removidas_count} manifestações respondidas foram removidas com sucesso.',
+            'removidas': removidas_count,
+            'pendentes': len(manifestacoes_pendentes)
+        })
+    except Exception as e:
+        print(f"Erro ao processar a limpeza de manifestações: {e}")
+        return jsonify({'erro': 'Erro interno ao limpar manifestações.'}), 500
+
 if __name__ == '__main__':
-    # Se rodar localmente, o login será com admin_local / 1234_local
+    # Cria os arquivos se não existirem
+    if not os.path.exists(MANIFESTACOES_FILE):
+        salvar_dados(MANIFESTACOES_FILE, [])
+    if not os.path.exists(MATRICULAS_FILE):
+        # Exemplo de matrículas válidas (apenas para teste)
+        salvar_dados(MATRICULAS_FILE, ["12345678", "87654321"])
+    if not os.path.exists(ADMIN_CREDS_FILE):
+        # Credenciais de admin padrão
+        salvar_dados(ADMIN_CREDS_FILE, [{"usuario": "admin", "senha": "123"}])
+
     app.run(debug=True)
