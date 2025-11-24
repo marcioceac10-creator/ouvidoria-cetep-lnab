@@ -1,194 +1,229 @@
 <!DOCTYPE html>
-<html lang="pt-br">
+<html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard - Ouvidoria</title>
+    <title>Administração da Ouvidoria</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
-        body { font-family: Arial, sans-serif; margin: 20px; background-color: #f4f4f4; }
-        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-        h1 { color: #333; }
-        button, .button { padding: 10px 15px; border: none; cursor: pointer; border-radius: 4px; }
-        .btn-update { background-color: #007bff; color: white; margin-right: 10px; }
-        .btn-logout { background-color: #dc3545; color: white; text-decoration: none; }
-        .manifestacao-card { border: 1px solid #ccc; padding: 15px; margin-bottom: 20px; background-color: #fff; box-shadow: 2px 2px 5px rgba(0,0,0,0.1); border-radius: 5px; }
-        .manifestacao-card h2 { margin-top: 0; color: #007bff; }
-        .manifestacao-card p { margin-bottom: 5px; }
-        .status-pendente { color: red; font-weight: bold; }
-        .status-respondida { color: green; font-weight: bold; }
-        .descricao, .resposta-texto { margin-top: 10px; padding: 10px; background-color: #eee; border: 1px solid #ddd; white-space: pre-wrap; border-radius: 4px; }
-        /* Estilos do Modal */
-        .modal { 
-            display: none; position: fixed; z-index: 1; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; 
-            background-color: rgba(0,0,0,0.4); justify-content: center; align-items: center; 
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
         }
-        .modal-content { background-color: #fefefe; margin: auto; padding: 20px; border: 1px solid #888; width: 80%; max-width: 600px; border-radius: 8px; }
-        .close { color: #aaa; float: right; font-size: 28px; font-weight: bold; }
-        .close:hover, .close:focus { color: black; text-decoration: none; cursor: pointer; }
-        textarea { width: 100%; padding: 10px; border: 1px solid #ccc; margin-top: 10px; box-sizing: border-box; border-radius: 4px; }
-        .btn-responder { background-color: #28a745; color: white; }
-        .btn-cancel { background-color: #6c757d; color: white; }
+        .container {
+            max-width: 90%;
+            margin: auto;
+            padding: 20px;
+        }
+        .header {
+            background-color: #1f2937;
+            color: white;
+            padding: 1rem 1.5rem;
+            border-radius: 0.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+        .logout-btn {
+            background-color: #dc2626;
+            transition: background-color 0.2s;
+        }
+        .logout-btn:hover {
+            background-color: #b91c1c;
+        }
+        .clean-btn {
+            background-color: #059669;
+            transition: background-color 0.2s;
+        }
+        .clean-btn:hover {
+            background-color: #047857;
+        }
+        .manifestacao-card {
+            background-color: white;
+            border-radius: 0.5rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+            margin-bottom: 1rem;
+            padding: 1.5rem;
+            border-left: 5px solid;
+        }
+        .status-pendente {
+            border-left-color: #f59e0b; /* Amarelo */
+        }
+        .status-respondida {
+            border-left-color: #10b981; /* Verde */
+            opacity: 0.7;
+        }
+        .response-box {
+            background-color: #f3f4f6;
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #d1d5db;
+            white-space: pre-wrap; /* Preserva quebras de linha */
+        }
+        .form-responder textarea {
+            min-height: 100px;
+        }
     </style>
 </head>
 <body>
-    <div class="header">
-        <h1>Painel de Controle da Ouvidoria</h1>
-        <div>
-            <button onclick="carregarManifestacoes(true)" class="btn-update">Atualizar Lista</button>
-            <a href="/admin" class="button btn-logout">Sair</a> 
-        </div>
-    </div>
-    <p>Gerencie e responda às manifestações do CETEP LNAB.</p>
-
-    <div id="loadingMessage" style="text-align: center; font-size: 1.2em; padding: 20px;">
-        Carregando manifestações...
-    </div>
-
-    <div id="manifestacoesContainer">
-        </div>
-
-    <div id="noManifestations" style="text-align: center; color: #666; padding: 20px; display: none;">
-        Nenhuma manifestação encontrada.
-    </div>
-    
-    <div id="responseModal" class="modal">
-        <div class="modal-content">
-            <span onclick="fecharModal()" class="close">&times;</span>
-            <h2>Responder Manifestação</h2>
-            <p id="modalProtocolo">Protocolo:</p>
-            
-            <textarea id="responseTextarea" rows="6" placeholder="Digite sua resposta aqui..."></textarea>
-            
-            <div style="text-align: right; margin-top: 15px;">
-                <button onclick="fecharModal()" class="btn-cancel">Cancelar</button>
-                <button id="sendResponseButton" class="btn-responder">Enviar Resposta</button>
+    <div class="container">
+        <div class="header">
+            <h1 class="text-2xl font-bold">Painel de Administração da Ouvidoria</h1>
+            <div class="flex space-x-4">
+                <button id="cleanButton" class="clean-btn text-white font-semibold py-2 px-4 rounded-lg shadow-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-50">
+                    Limpar Respondidas
+                </button>
+                <a href="{{ url_for('admin_logout') }}" class="logout-btn text-white font-semibold py-2 px-4 rounded-lg shadow-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50">
+                    Sair
+                </a>
             </div>
+        </div>
+
+        <p id="totalManifestacoes" class="text-lg font-semibold mb-4">Total de Manifestações: <span class="text-blue-600">{{ manifestacoes|length }}</span></p>
+
+        <div id="manifestacoesList">
+            {% for m in manifestacoes %}
+            {% set status_class = 'status-respondida' if m.resposta else 'status-pendente' %}
+            
+            <div id="card-{{ m.protocolo }}" class="manifestacao-card {{ status_class }}">
+                <div class="flex justify-between items-start mb-4">
+                    <div>
+                        <span class="text-sm font-medium text-gray-500">Protocolo:</span>
+                        <span class="text-xl font-bold text-gray-800">{{ m.protocolo }}</span>
+                    </div>
+                    <div>
+                        <span class="text-sm font-medium text-gray-500">Status:</span>
+                        <span class="font-semibold px-3 py-1 rounded-full text-xs {% if m.resposta %}bg-green-100 text-green-800{% else %}bg-yellow-100 text-yellow-800{% endif %}">
+                            {% if m.resposta %}Respondida{% else %}Pendente{% endif %}
+                        </span>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2 mb-4 text-sm">
+                    <p><span class="font-semibold">Nome:</span> {{ m.nome }}</p>
+                    <p><span class="font-semibold">Tipo:</span> {{ m.tipo | capitalize }}</p>
+                    <p><span class="font-semibold">CPF:</span> {{ m.cpf }}</p>
+                    <p><span class="font-semibold">Matrícula:</span> {{ m.matricula or 'Não Informada' }}</p>
+                    <p class="md:col-span-2"><span class="font-semibold">E-mail:</span> {{ m.email or 'Não Informado' }}</p>
+                    <p class="md:col-span-2"><span class="font-semibold">Data/Hora:</span> {{ m.data }}</p>
+                </div>
+                
+                <div class="mb-4">
+                    <p class="font-semibold mb-1">Descrição:</p>
+                    <div class="response-box bg-white">{{ m.descricao }}</div>
+                </div>
+
+                {% if m.resposta %}
+                    <div class="mt-4 border-t pt-4">
+                        <p class="font-semibold text-green-700 mb-2">Resposta da Ouvidoria:</p>
+                        <div class="response-box bg-green-50">{{ m.resposta }}</div>
+                    </div>
+                {% else %}
+                    <div class="mt-6 border-t pt-4">
+                        <form class="form-responder" data-protocolo="{{ m.protocolo }}">
+                            <p class="font-semibold mb-2 text-gray-700">Responder Manifestação:</p>
+                            <textarea name="resposta" placeholder="Digite sua resposta aqui..." required class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"></textarea>
+                            <button type="submit" class="mt-2 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition duration-150">
+                                Enviar Resposta
+                            </button>
+                        </form>
+                    </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+            
+            {% if not manifestacoes %}
+            <p class="text-center text-gray-500 mt-10 p-6 bg-white rounded-lg shadow">Nenhuma manifestação registrada ainda.</p>
+            {% endif %}
         </div>
     </div>
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            carregarManifestacoes();
-        });
+            
+            // --- Script para Responder Manifestação ---
+            document.querySelectorAll('.form-responder').forEach(form => {
+                form.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    
+                    const protocolo = form.getAttribute('data-protocolo');
+                    const resposta = form.querySelector('textarea[name="resposta"]').value;
 
-        let currentProtocolo = null;
-        const container = document.getElementById('manifestacoesContainer');
-        const loadingMessage = document.getElementById('loadingMessage');
-        const noManifestations = document.getElementById('noManifestations');
-        const responseModal = document.getElementById('responseModal');
-        const modalProtocolo = document.getElementById('modalProtocolo');
-        const responseTextarea = document.getElementById('responseTextarea');
-        const sendResponseButton = document.getElementById('sendResponseButton');
+                    if (!resposta.trim()) {
+                        alert('A resposta não pode estar vazia.');
+                        return;
+                    }
 
-        function carregarManifestacoes(force = false) {
-            loadingMessage.style.display = 'block';
-            container.innerHTML = '';
-            noManifestations.style.display = 'none';
+                    const formData = new URLSearchParams();
+                    formData.append('protocolo', protocolo);
+                    formData.append('resposta', resposta);
 
-            fetch('/api/manifestacoes')
-            .then(response => response.json())
-            .then(data => {
-                loadingMessage.style.display = 'none';
-                
-                if (data.length === 0) {
-                    noManifestations.style.display = 'block';
-                    return;
-                }
+                    try {
+                        const response = await fetch('/responder', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/x-www-form-urlencoded',
+                            },
+                            body: formData.toString(),
+                        });
 
-                data.reverse().forEach(m => {
-                    const card = criarCardManifestacao(m);
-                    container.appendChild(card);
+                        const result = await response.json();
+
+                        if (response.ok) {
+                            alert(result.mensagem + ' A página será atualizada.');
+                            window.location.reload(); // Recarrega para refletir o status
+                        } else {
+                            alert('Erro ao responder: ' + result.erro);
+                        }
+                    } catch (error) {
+                        console.error('Erro na requisição:', error);
+                        alert('Erro ao conectar com o servidor.');
+                    }
                 });
-            })
-            .catch(error => {
-                loadingMessage.style.display = 'none';
-                container.innerHTML = `<div style="padding: 10px; background-color: #fdd; color: #a00;">Erro ao carregar dados: ${error.message}</div>`;
-                console.error('Erro ao buscar manifestações:', error);
             });
-        }
 
-        function criarCardManifestacao(m) {
-            const card = document.createElement('div');
-            const isAnswered = m.resposta !== null && m.resposta !== '';
-            
-            card.className = 'manifestacao-card';
-            
-            card.innerHTML = `
-                <h2>${m.tipo.toUpperCase()}</h2>
-                <p><strong>Protocolo:</strong> ${m.protocolo}</p>
-                <p><strong>Status:</strong> <span class="${isAnswered ? 'status-respondida' : 'status-pendente'}">${isAnswered ? 'Respondida' : 'Pendente'}</span></p>
-                <p><strong>Data:</strong> ${m.data}</p>
-                <p><strong>Nome:</strong> ${m.nome}</p>
-                <p><strong>CPF:</strong> ${m.cpf}</p>
-                <p><strong>Matrícula:</strong> ${m.matricula}</p>
-                
-                <p><strong>Descrição:</strong></p>
-                <div class="descricao">${m.descricao}</div>
-                
-                ${isAnswered ? 
-                    `<p style="margin-top: 15px;"><strong>Resposta da Ouvidoria:</strong></p>
-                    <div class="resposta-texto">${m.resposta}</div>` 
-                    : `<button onclick="abrirModal('${m.protocolo}')" class="btn-responder" style="margin-top: 15px;">
-                        Responder
-                    </button>`
-                }
-            `;
-            return card;
-        }
+            // --- Script para Limpar Respondidas (Nova Função) ---
+            const cleanButton = document.getElementById('cleanButton');
+            if (cleanButton) {
+                cleanButton.addEventListener('click', async () => {
+                    const confirmacao = confirm("Tem certeza que deseja remover TODAS as manifestações que já foram respondidas? Esta ação é IRREVERSÍVEL.");
+                    
+                    if (!confirmacao) {
+                        return;
+                    }
+                    
+                    cleanButton.disabled = true;
+                    cleanButton.textContent = 'Limpando...';
 
-        function abrirModal(protocolo) {
-            currentProtocolo = protocolo;
-            modalProtocolo.textContent = `Protocolo: ${protocolo}`;
-            responseTextarea.value = ''; 
-            responseModal.style.display = 'flex';
-        }
+                    try {
+                        const response = await fetch('/limpar_respondidas', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                        });
 
-        function fecharModal() {
-            responseModal.style.display = 'none';
-            currentProtocolo = null;
-        }
+                        const result = await response.json();
 
-        sendResponseButton.addEventListener('click', enviarResposta);
-
-        function enviarResposta() {
-            if (!currentProtocolo) return;
-            
-            const resposta = responseTextarea.value.trim();
-            if (resposta.length < 10) {
-                alert('A resposta deve ter pelo menos 10 caracteres.');
-                return;
+                        if (response.ok) {
+                            alert(result.mensagem + ' A página será atualizada.');
+                            window.location.reload();
+                        } else {
+                            alert('Erro ao limpar manifestações: ' + result.erro);
+                            cleanButton.textContent = 'Limpar Respondidas';
+                        }
+                    } catch (error) {
+                        console.error('Erro na requisição de limpeza:', error);
+                        alert('Erro ao conectar com o servidor para limpar manifestações.');
+                        cleanButton.textContent = 'Limpar Respondidas';
+                    } finally {
+                        cleanButton.disabled = false;
+                    }
+                });
             }
-
-            sendResponseButton.disabled = true;
-            sendResponseButton.textContent = 'Enviando...';
-
-            const payload = new URLSearchParams();
-            payload.append('protocolo', currentProtocolo);
-            payload.append('resposta', resposta);
-
-            fetch('/responder', {
-                method: 'POST',
-                body: payload
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.mensagem) {
-                    alert(data.mensagem); 
-                    fecharModal();
-                    carregarManifestacoes(true); // Recarrega a lista
-                } else {
-                    alert('Erro ao enviar resposta: ' + (data.erro || 'Erro desconhecido.'));
-                }
-            })
-            .catch(error => {
-                console.error('Erro na requisição de resposta:', error);
-                alert('Erro de conexão com o servidor ao enviar a resposta.');
-            })
-            .finally(() => {
-                sendResponseButton.disabled = false;
-                sendResponseButton.textContent = 'Enviar Resposta';
-            });
-        }
+        });
     </script>
 </body>
 </html>
